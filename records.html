@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Records - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1><i class="ph-fill ph-scan"></i> FaceAuth System</h1>
+            <p>Attendance logs and historical records</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link active"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content" style="grid-template-columns: 1fr;">
+            
+            <div class="stats-section">
+                <div class="glass stat-card">
+                    <h3><i class="ph ph-files"></i> Total Records</h3>
+                    <p id="totalRecords" class="stat-number">0</p>
+                </div>
+                
+                <div class="glass stat-card">
+                    <h3><i class="ph ph-users"></i> Unique Users</h3>
+                    <p id="uniqueUsers" class="stat-number">0</p>
+                </div>
+                
+                <div class="glass stat-card">
+                    <h3><i class="ph ph-calendar"></i> Date Range</h3>
+                    <p id="dateRange" class="stat-text">-</p>
+                </div>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="glass filter-section">
+                <h2><i class="ph ph-funnel"></i> View Options</h2>
+                
+                <div class="filter-controls">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="date" id="filterDate" onchange="loadAttendance()">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="loadTodayAttendance()">
+                        <i class="ph ph-calendar-star"></i> Today
+                    </button>
+                    
+                    <button class="btn btn-secondary" onclick="loadAllAttendance()">
+                        <i class="ph ph-files"></i> All History
+                    </button>
+                    
+                    <button class="btn btn-success" onclick="exportToCSV()" style="margin-left: auto;">
+                        <i class="ph ph-download-simple"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Records Table -->
+            <div class="glass table-section">
+                <h2><i class="ph ph-list-dashes"></i> Attendance Logs</h2>
+                <div id="recordsTable" style="overflow-x: auto;">
+                    <div style="text-align: center; padding: 20px;"><i class="ph ph-spinner ph-spin"></i> Loading data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Admin Dashboard. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        let currentRecords = [];
+
+        async function loadAttendance(date = null) {
+            try {
+                let url = '/api/get_attendance';
+                if (date) url += `?date=${date}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentRecords = data.records;
+                    displayRecords(data.records);
+                    updateStatistics(data.records);
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Failed to load logs', 'error');
+            }
+        }
+
+        function displayRecords(records) {
+            const tableDiv = document.getElementById('recordsTable');
+
+            if (records.length === 0) {
+                tableDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No logs found for this period.</p>';
+                return;
+            }
+
+            let html = '<table class="records-table">';
+            html += `<tr>
+                <th style="width: 50px;">#</th>
+                <th>Employee ID</th>
+                <th>Name</th>
+                <th>Date Logged</th>
+                <th>Time In</th>
+                <th>Status</th>
+            </tr>`;
+
+            records.forEach(record => {
+                html += `<tr>
+                    <td style="color: var(--text-muted);">${record.id || '-'}</td>
+                    <td style="font-weight: 500;">${record.user_id}</td>
+                    <td>${record.name}</td>
+                    <td>${record.date}</td>
+                    <td>${record.time_in}</td>
+                    <td><span class="badge badge-success"><i class="ph ph-check"></i> Present</span></td>
+                </tr>`;
+            });
+
+            html += '</table>';
+            tableDiv.innerHTML = html;
+        }
+
+        function updateStatistics(records) {
+            document.getElementById('totalRecords').textContent = records.length;
+
+            const uniqueUserIds = [...new Set(records.map(r => r.user_id))];
+            document.getElementById('uniqueUsers').textContent = uniqueUserIds.length;
+
+            if (records.length > 0) {
+                const dates = records.map(r => r.date);
+                const minDate = new Date(Math.min(...dates.map(d => new Date(d))));
+                const maxDate = new Date(Math.max(...dates.map(d => new Date(d))));
+                
+                if (minDate.getTime() === maxDate.getTime()) {
+                    document.getElementById('dateRange').textContent = minDate.toLocaleDateString();
+                } else {
+                    document.getElementById('dateRange').textContent = `${minDate.toLocaleDateString()} - ${maxDate.toLocaleDateString()}`;
+                }
+            } else {
+                document.getElementById('dateRange').textContent = '-';
+            }
+        }
+
+        function loadTodayAttendance() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('filterDate').value = today;
+            loadAttendance(today);
+        }
+
+        function loadAllAttendance() {
+            document.getElementById('filterDate').value = '';
+            loadAttendance();
+        }
+
+        function exportToCSV() {
+            if (currentRecords.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            let csv = 'ID,User ID,Name,Date,Time,Status\n';
+            currentRecords.forEach(record => {
+                csv += `${record.id || ''},${record.user_id},${record.name},${record.date},${record.time_in},Present\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FaceAuth_Logs_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            showToast('Export successful', 'success');
+        }
+
+        document.getElementById('filterDate').valueAsDate = new Date();
+        loadTodayAttendance();
+    </script>
+</body>
+</html>

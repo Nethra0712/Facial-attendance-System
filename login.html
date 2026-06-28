@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 70vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 450px;
+            padding: 40px;
+        }
+        .login-card h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        .error-msg {
+            background: var(--danger-bg);
+            color: var(--danger);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            border: 1px solid var(--danger);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="ph-fill ph-scan"></i> FaceAuth</h1>
+        </header>
+
+        <div class="login-container">
+            <div class="glass login-card">
+                <h2>Portal Login</h2>
+                
+                {% if error %}
+                <div class="error-msg">
+                    <i class="ph ph-warning-circle"></i> {{ error }}
+                </div>
+                {% endif %}
+
+                <form action="/login" method="POST">
+                    <div class="form-group">
+                        <label for="user_id">User ID / Registration ID</label>
+                        <input type="text" id="user_id" name="user_id" required placeholder="Enter your ID">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required placeholder="Enter your password">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large" style="margin-top: 20px;">
+                        <i class="ph ph-sign-in"></i> Sign In
+                    </button>
+                </form>
+
+                <div style="margin-top: 30px; text-align: center;">
+                    <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                        <i class="ph ph-arrow-left"></i> Back to Landing Page
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Admin Dashboard. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

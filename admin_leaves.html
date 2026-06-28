@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Leaves - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="ph-fill ph-calendar-check"></i> Leave Management</h1>
+            <p>Review and manage employee leave requests</p>
+        </header>
+
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link active"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <div class="main-content" style="grid-template-columns: 1fr;">
+            <div class="glass table-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2><i class="ph ph-list-bullets"></i> Pending Requests</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="statusFilter" onchange="loadLeaves()" class="glass" style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 8px;">
+                            <option value="Pending">Pending Only</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                            <option value="">All Status</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="overflow-x: auto;">
+                    <table class="records-table">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaveTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px;"><i class="ph ph-spinner ph-spin"></i> Loading requests...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth HQ. Precision Attendance Control.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        async function loadLeaves() {
+            const status = document.getElementById('statusFilter').value;
+            try {
+                const response = await fetch(`/api/get_leaves?status=${status}`);
+                const data = await response.json();
+                const tbody = document.getElementById('leaveTableBody');
+                
+                if (data.success && data.leaves.length > 0) {
+                    let html = '';
+                    data.leaves.forEach(leave => {
+                        const statusBadge = leave.status === 'Pending' ? 'badge-warning' : (leave.status === 'Approved' ? 'badge-success' : 'badge-danger');
+                        html += `
+                            <tr>
+                                <td><strong>${leave.name}</strong><br><small>${leave.user_id}</small></td>
+                                <td>${leave.leave_date}</td>
+                                <td>${leave.type}</td>
+                                <td><span title="${leave.reason}">${leave.reason.substring(0, 30)}${leave.reason.length > 30 ? '...' : ''}</span></td>
+                                <td><span class="badge ${statusBadge}">${leave.status}</span></td>
+                                <td class="actions">
+                                    ${leave.status === 'Pending' ? `
+                                        <button onclick="updateLeave(${leave.id}, 'Approved')" class="btn btn-success btn-sm" style="padding: 5px 10px;"><i class="ph ph-check"></i></button>
+                                        <button onclick="updateLeave(${leave.id}, 'Rejected')" class="btn btn-danger btn-sm" style="padding: 5px 10px;"><i class="ph ph-x"></i></button>
+                                    ` : '--'}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;">No leave requests found.</td></tr>';
+                }
+            } catch (error) {
+                console.error("Failed to load leaves", error);
+            }
+        }
+
+        async function updateLeave(id, status) {
+            try {
+                const response = await fetch('/api/update_leave', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, status })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(`Leave request ${status.toLowerCase()} successfully`, 'success');
+                    loadLeaves();
+                } else {
+                    showToast('Action failed', 'error');
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
+            }
+        }
+
+        loadLeaves();
+    </script>
+</body>
+</html>

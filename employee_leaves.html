@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Leave - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="ph-fill ph-paper-plane"></i> Leave Portal</h1>
+            <p>Request time off and track your approval status</p>
+        </header>
+
+        <nav class="glass nav-bar">
+            <a href="/dashboard" class="nav-link"><i class="ph ph-house"></i> Dashboard</a>
+            <a href="/employee/leaves" class="nav-link active"><i class="ph ph-calendar-plus"></i> My Leaves</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <div class="main-content" style="grid-template-columns: 1fr 1.5fr;">
+            <!-- Column 1: Request & Balance -->
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Balance Card -->
+                <div class="glass form-section" style="border-left: 5px solid var(--primary);">
+                    <h2><i class="ph ph-chart-pie"></i> Monthly Balance</h2>
+                    <div id="balanceContainer" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                        <div style="text-align: center; padding: 20px;"><i class="ph ph-spinner ph-spin"></i></div>
+                    </div>
+                </div>
+
+                <!-- Request Form -->
+                <div class="glass form-section">
+                    <h2><i class="ph ph-pencil-line"></i> New Request</h2>
+                    <form id="leaveForm" onsubmit="submitLeave(event)">
+                        <div class="form-group">
+                            <label for="leaveDate">Leave Date</label>
+                            <input type="date" id="leaveDate" required class="glass" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="leaveType">Type</label>
+                            <select id="leaveType" required class="glass" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                                <option value="Casual">Casual Leave</option>
+                                <option value="Medical">Medical Leave</option>
+                                <option value="Short">Short Leave</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reason">Reason</label>
+                            <textarea id="reason" required class="glass" placeholder="Explain your reason here..." style="width: 100%; height: 100px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; padding: 10px;"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <i class="ph ph-paper-plane-tilt"></i> Send Request
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- History Table -->
+            <div class="glass table-section">
+                <h2><i class="ph ph-clock-counter-clockwise"></i> Request History</h2>
+                <div style="overflow-x: auto;">
+                    <table class="records-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 40px;"><i class="ph ph-spinner ph-spin"></i> Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Employee Connect.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // Set min date to today
+        document.getElementById('leaveDate').min = new Date().toISOString().split('T')[0];
+
+        async function loadLeaveBalance() {
+            try {
+                const response = await fetch('/api/get_leave_balance');
+                const data = await response.json();
+                const container = document.getElementById('balanceContainer');
+                
+                if (data.success && data.balance.length > 0) {
+                    let html = '';
+                    data.balance.forEach(item => {
+                        const percent = (item.used / item.limit) * 100;
+                        const color = percent >= 100 ? 'var(--danger)' : (percent >= 70 ? 'var(--warning)' : 'var(--success)');
+                        
+                        html += `
+                            <div class="balance-item">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>${item.type}</span>
+                                    <span style="font-weight: 600; color: ${color}">${item.remaining} Left</span>
+                                </div>
+                                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${percent}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
+                                </div>
+                                <small style="display: block; margin-top: 3px; text-align: right; color: var(--text-muted);">
+                                    ${item.used} / ${item.limit} Used this month
+                                </small>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Could not load balance.</p>';
+                }
+            } catch (error) {
+                console.error("Failed to load balance", error);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/get_leaves');
+                const data = await response.json();
+                const tbody = document.getElementById('historyTableBody');
+                
+                if (data.success && data.leaves.length > 0) {
+                    let html = '';
+                    data.leaves.forEach(leave => {
+                        const statusBadge = leave.status === 'Pending' ? 'badge-warning' : (leave.status === 'Approved' ? 'badge-success' : 'badge-danger');
+                        html += `
+                            <tr>
+                                <td>${leave.leave_date}</td>
+                                <td>${leave.type}</td>
+                                <td><small>${leave.reason}</small></td>
+                                <td><span class="badge ${statusBadge}">${leave.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 40px;">No requests yet.</td></tr>';
+                }
+            } catch (error) {
+                console.error("Failed to load history", error);
+            }
+        }
+
+        async function submitLeave(e) {
+            e.preventDefault();
+            const date = document.getElementById('leaveDate').value;
+            const type = document.getElementById('leaveType').value;
+            const reason = document.getElementById('reason').value;
+
+            try {
+                const response = await fetch('/api/request_leave', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, type, reason })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message || 'Leave request submitted successfully', 'success');
+                    document.getElementById('leaveForm').reset();
+                    loadHistory();
+                    loadLeaveBalance();
+                } else {
+                    showToast(data.message || 'Failed to submit request', 'error');
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
+            }
+        }
+
+        loadHistory();
+        loadLeaveBalance();
+    </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# --- Secrets & environment ---
+.env
+*.env
+
+# --- Sensitive employee data (face photos / trained encodings) ---
+training_data/
+models/*.pkl
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Virtual environments ---
+venv/
+env/
+ENV/
+.venv/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs / misc ---
+*.log
+saving path.txt
+scratch/

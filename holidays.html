@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holidays & Off Days - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="ph-fill ph-calendar"></i> Calendar Management</h1>
+            <p>Manage public holidays and individual employee off-days</p>
+        </header>
+
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link active"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <div class="main-content" style="grid-template-columns: 1fr 1fr;">
+            
+            <!-- Public Holidays Section -->
+            <div class="glass form-section">
+                <h2><i class="ph ph-flag-banner"></i> Public Holidays</h2>
+                <form onsubmit="addHoliday(event)" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="date" id="holidayDate" required class="glass" style="flex: 1; padding: 10px; color: white;">
+                    <input type="text" id="holidayDesc" placeholder="Description" required class="glass" style="flex: 2; padding: 10px; color: white;">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i></button>
+                </form>
+                
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="records-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Holiday Name</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holidayTableBody">
+                            <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Employee Off Days Section -->
+            <div class="glass form-section">
+                <h2><i class="ph ph-user-circle"></i> Employee Off Days</h2>
+                <form onsubmit="addOffDay(event)" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; gap: 10px;">
+                        <select id="userSelect" required class="glass" style="flex: 2; padding: 10px; color: white;">
+                            <option value="">Select Employee</option>
+                        </select>
+                        <input type="date" id="offDate" required class="glass" style="flex: 1; padding: 10px; color: white;">
+                        <button type="submit" class="btn btn-warning"><i class="ph ph-plus"></i></button>
+                    </div>
+                </form>
+
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="records-table">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Off Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="offDayTableBody">
+                            <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 Calendar Operations Unit.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        async function loadUsers() {
+            const resp = await fetch('/api/get_users');
+            const data = await resp.json();
+            if (data.success) {
+                const select = document.getElementById('userSelect');
+                data.users.forEach(u => {
+                    if (u.role === 'employee') {
+                        const opt = document.createElement('option');
+                        opt.value = u.user_id;
+                        opt.textContent = `${u.name} (${u.user_id})`;
+                        select.appendChild(opt);
+                    }
+                });
+            }
+        }
+
+        async function loadHolidays() {
+            const resp = await fetch('/api/get_holidays');
+            const data = await resp.json();
+            const tbody = document.getElementById('holidayTableBody');
+            if (data.success) {
+                tbody.innerHTML = data.holidays.map(h => `
+                    <tr>
+                        <td>${h.holiday_date}</td>
+                        <td>${h.description}</td>
+                        <td><button onclick="deleteHoliday(${h.id})" class="btn btn-danger btn-sm"><i class="ph ph-trash"></i></button></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align: center;">No holidays set.</td></tr>';
+            }
+        }
+
+        async function loadOffDays() {
+            const resp = await fetch('/api/get_off_days');
+            const data = await resp.json();
+            const tbody = document.getElementById('offDayTableBody');
+            if (data.success) {
+                tbody.innerHTML = data.off_days.map(o => `
+                    <tr>
+                        <td><strong>${o.name}</strong></td>
+                        <td>${o.off_date}</td>
+                        <td><button onclick="deleteOffDay(${o.id})" class="btn btn-danger btn-sm"><i class="ph ph-trash"></i></button></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align: center;">No off-days set.</td></tr>';
+            }
+        }
+
+        async function addHoliday(e) {
+            e.preventDefault();
+            const date = document.getElementById('holidayDate').value;
+            const description = document.getElementById('holidayDesc').value;
+            const resp = await fetch('/api/manage_holiday', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', date, description })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Holiday added', 'success');
+                loadHolidays();
+                e.target.reset();
+            }
+        }
+
+        async function deleteHoliday(id) {
+            const resp = await fetch('/api/manage_holiday', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id })
+            });
+            if ((await resp.json()).success) {
+                showToast('Holiday removed', 'info');
+                loadHolidays();
+            }
+        }
+
+        async function addOffDay(e) {
+            e.preventDefault();
+            const user_id = document.getElementById('userSelect').value;
+            const date = document.getElementById('offDate').value;
+            const resp = await fetch('/api/manage_off_day', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', user_id, date })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Off-day assigned', 'success');
+                loadOffDays();
+                e.target.reset();
+            } else {
+                showToast('Error assigning off-day', 'error');
+            }
+        }
+
+        async function deleteOffDay(id) {
+            const resp = await fetch('/api/manage_off_day', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id })
+            });
+            if ((await resp.json()).success) {
+                showToast('Off-day removed', 'info');
+                loadOffDays();
+            }
+        }
+
+        loadUsers();
+        loadHolidays();
+        loadOffDays();
+    </script>
+</body>
+</html>

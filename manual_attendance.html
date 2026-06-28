@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Attendance - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="ph-fill ph-note-pencil"></i> Manual Entry</h1>
+            <p>Manually record or correct attendance records</p>
+        </header>
+
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link active"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <div class="main-content" style="grid-template-columns: 1fr 1fr;">
+            <!-- Form Section -->
+            <div class="glass form-section">
+                <h2><i class="ph ph-user-plus"></i> Record Attendance</h2>
+                <form id="attendanceForm" onsubmit="markManual(event)">
+                    <div class="form-group">
+                        <label for="userSelect">Select Employee</label>
+                        <select id="userSelect" required class="glass" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                            <option value="">Choose an employee...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="attDate">Attendance Date</label>
+                        <input type="date" id="attDate" required class="glass" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="attTime">Entry Time (In)</label>
+                        <input type="time" id="attTime" required class="glass" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="ph ph-check-square"></i> Mark Present
+                    </button>
+                    <p style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                        <i class="ph ph-info"></i> Manual entries override existing records for the same day.
+                    </p>
+                </form>
+            </div>
+
+            <!-- Recent Manual Logs -->
+            <div class="glass info-card">
+                <h3><i class="ph ph-clock"></i> Guidelines</h3>
+                <ul style="padding-left: 20px; line-height: 1.8; color: var(--text-muted);">
+                    <li>Use this only for corrections (e.g. employee forgot to scan).</li>
+                    <li>Ensure the date is correct before submitting.</li>
+                    <li>Time should be in 24-hour format.</li>
+                    <li>Records added here will be reflected in payroll immediately.</li>
+                </ul>
+                <div style="margin-top: 30px; text-align: center; opacity: 0.5;">
+                    <i class="ph ph-sketch-logo" style="font-size: 80px;"></i>
+                </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 Admin Operations Bureau.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // Set default date to today
+        document.getElementById('attDate').valueAsDate = new Date();
+        document.getElementById('attTime').value = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+        async function loadUsers() {
+            const resp = await fetch('/api/get_users');
+            const data = await resp.json();
+            if (data.success) {
+                const select = document.getElementById('userSelect');
+                data.users.forEach(u => {
+                    if (u.role === 'employee') {
+                        const opt = document.createElement('option');
+                        opt.value = u.user_id;
+                        opt.textContent = `${u.name} (${u.user_id})`;
+                        select.appendChild(opt);
+                    }
+                });
+            }
+        }
+
+        async function markManual(e) {
+            e.preventDefault();
+            const user_id = document.getElementById('userSelect').value;
+            const date = document.getElementById('attDate').value;
+            const time_in = document.getElementById('attTime').value;
+
+            try {
+                const resp = await fetch('/api/mark_manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id, date, time_in })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('Attendance marked successfully', 'success');
+                    e.target.reset();
+                    document.getElementById('attDate').valueAsDate = new Date();
+                } else {
+                    showToast(data.message || 'Failed to mark attendance', 'error');
+                }
+            } catch (error) {
+                showToast('Error connecting to server', 'error');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>

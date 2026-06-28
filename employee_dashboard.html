@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .employee-hero {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .employee-hero .stat-card {
+            padding: 25px;
+            text-align: center;
+        }
+        .employee-hero .stat-number {
+             font-size: 2.2rem;
+             margin-top: 5px;
+        }
+        .employee-hero .stat-label {
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+        
+        /* Inbox Styles */
+        .inbox-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .message-item {
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .message-item.unread {
+            border-left: 4px solid var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .message-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .message-date {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .message-body {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+        .unread-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="text-align: left;">
+                    <h1><i class="ph-fill ph-user"></i> Welcome, {{ current_user.name }}</h1>
+                    <p>{{ current_user.department }} | Employee Portal</p>
+                </div>
+                <a href="/logout" class="btn btn-danger">
+                    <i class="ph ph-sign-out"></i> Logout
+                </a>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="glass nav-bar" style="margin-bottom: 30px;">
+            <a href="/dashboard" class="nav-link active"><i class="ph ph-house"></i> Dashboard</a>
+            <a href="/employee/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> My Leaves</a>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content" style="grid-template-columns: 2fr 1fr; align-items: start;">
+            
+            <div class="left-col" style="display: flex; flex-direction: column; gap: 30px;">
+                <div class="employee-hero">
+                    <div class="glass stat-card">
+                        <div class="stat-label">Days Present</div>
+                        <div class="stat-number">{{ attendance|length }}</div>
+                    </div>
+                    
+                    <div class="glass stat-card">
+                        <div class="stat-label">Approved Leaves</div>
+                        <div class="stat-number" id="leavesCount">0</div>
+                    </div>
+                    
+                    <div class="glass stat-card">
+                        <div class="stat-label">Monthly Est.</div>
+                        <div class="stat-number" style="color: var(--primary); font-size: 1.8rem;">LKR {{ total_payment }}</div>
+                    </div>
+                </div>
+
+                <!-- Attendance Table -->
+                <div class="glass table-section">
+                    <h2><i class="ph ph-calendar"></i> Your Attendance Log</h2>
+                    <div style="overflow-x: auto;">
+                        <table class="records-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Time In</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in attendance %}
+                                <tr>
+                                    <td>{{ record.date }}</td>
+                                    <td>{{ record.time_in }}</td>
+                                    <td><span class="badge badge-success"><i class="ph ph-check"></i> Present</span></td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" style="text-align: center; padding: 30px;">No attendance records found yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Calendar Section -->
+                <div class="glass calendar-section">
+                    <h2><i class="ph ph-calendar-blank"></i> Your Schedule</h2>
+                    <div class="calendar-container">
+                        <div class="calendar-header">
+                            <button class="btn btn-small btn-secondary" onclick="changeMonth(-1)"><i class="ph ph-caret-left"></i></button>
+                            <h3 id="currentMonthLabel" style="margin: 0;">Month Year</h3>
+                            <button class="btn btn-small btn-secondary" onclick="changeMonth(1)"><i class="ph ph-caret-right"></i></button>
+                        </div>
+                        <div class="calendar-grid" id="calendarGrid">
+                            <!-- Labels -->
+                            <div class="calendar-day-label">Sun</div>
+                            <div class="calendar-day-label">Mon</div>
+                            <div class="calendar-day-label">Tue</div>
+                            <div class="calendar-day-label">Wed</div>
+                            <div class="calendar-day-label">Thu</div>
+                            <div class="calendar-day-label">Fri</div>
+                            <div class="calendar-day-label">Sat</div>
+                            <!-- Days populate here -->
+                        </div>
+                        <div class="calendar-legend">
+                            <div class="legend-item"><div class="legend-color" style="background: var(--danger);"></div> Holiday</div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--warning);"></div> Off-Day</div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--success);"></div> Present</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Inbox -->
+            <div class="glass inbox-section">
+                <h2><i class="ph ph-envelope-simple"></i> Digital Inbox</h2>
+                <div id="inboxList" class="inbox-list">
+                    <div style="text-align: center; padding: 20px;"><i class="ph ph-spinner ph-spin"></i> Loading messages...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast / Message Box -->
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Enterprise. Secure. Modern. Efficient.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        async function loadMessages() {
+            try {
+                const response = await fetch('/api/get_messages');
+                const data = await response.json();
+                const inbox = document.getElementById('inboxList');
+
+                if (data.success && data.messages.length > 0) {
+                    let html = '';
+                    data.messages.forEach(msg => {
+                        const icon = msg.type === 'slip' ? 'ph-money' : (msg.type === 'welcome' ? 'ph-hand-waving' : 'ph-info');
+                        html += `
+                            <div class="message-item ${msg.is_read ? '' : 'unread'}" onclick="markRead(${msg.id}, this)">
+                                <div class="message-header">
+                                    <div class="message-title">
+                                        <i class="ph ph-fill ${icon}"></i>
+                                        ${msg.title}
+                                        ${msg.is_read ? '' : '<span class="unread-dot"></span>'}
+                                    </div>
+                                    <div class="message-date">${new Date(msg.created_at).toLocaleDateString()}</div>
+                                </div>
+                                <div class="message-body">${msg.message}</div>
+                            </div>
+                        `;
+                    });
+                    inbox.innerHTML = html;
+                } else {
+                    inbox.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No messages received.</p>';
+                }
+            } catch (error) {
+                console.error("Failed to load messages", error);
+            }
+        }
+
+        async function markRead(id, element) {
+            if (!element.classList.contains('unread')) return;
+            
+            try {
+                const response = await fetch('/api/mark_message_read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    element.classList.remove('unread');
+                    const dot = element.querySelector('.unread-dot');
+                    if (dot) dot.remove();
+                }
+            } catch (error) {}
+        }
+
+        async function loadLeavesCount() {
+            try {
+                const response = await fetch('/api/get_leaves?status=Approved');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('leavesCount').textContent = data.leaves.length;
+                }
+            } catch (error) {}
+        }
+
+        // --- Calendar Logic ---
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+        
+        const attendanceData = [
+            {% for record in attendance %}
+            "{{ record.date }}",
+            {% endfor %}
+        ];
+
+        async function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const monthLabel = document.getElementById('currentMonthLabel');
+            
+            // Clear previous days (keep headers)
+            const labels = grid.querySelectorAll('.calendar-day-label');
+            grid.innerHTML = '';
+            labels.forEach(l => grid.appendChild(l));
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(currentYear, currentMonth));
+            
+            monthLabel.textContent = `${monthName} ${currentYear}`;
+
+            // Fetch Holidays and Off-days
+            let holidays = [];
+            let offDays = [];
+            try {
+                const hResp = await fetch('/api/get_holidays');
+                const hData = await hResp.json();
+                if (hData.success) holidays = hData.holidays;
+
+                const oResp = await fetch('/api/get_off_days');
+                const oData = await oResp.json();
+                if (oData.success) offDays = oData.off_days;
+            } catch (e) {}
+
+            // Empty slots for first day
+            for (let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'calendar-day empty';
+                grid.appendChild(empty);
+            }
+
+            // Days
+            const today = new Date();
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dayEl = document.createElement('div');
+                dayEl.className = 'calendar-day';
+                dayEl.textContent = d;
+
+                // Today mark
+                if (today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear) {
+                    dayEl.classList.add('today');
+                }
+
+                // Check Holiday
+                const holiday = holidays.find(h => h.holiday_date === dateStr);
+                if (holiday) {
+                    dayEl.classList.add('holiday');
+                    dayEl.title = holiday.description;
+                    const marker = document.createElement('div');
+                    marker.className = 'day-marker marker-holiday';
+                    dayEl.appendChild(marker);
+                }
+
+                // Check Off-day
+                const off = offDays.find(o => o.off_date === dateStr);
+                if (off) {
+                    dayEl.classList.add('off-day');
+                    const marker = document.createElement('div');
+                    marker.className = 'day-marker marker-off';
+                    dayEl.appendChild(marker);
+                }
+
+                // Check Attendance (Present)
+                if (attendanceData.includes(dateStr)) {
+                    dayEl.classList.add('present');
+                    const marker = document.createElement('div');
+                    marker.className = 'day-marker marker-present';
+                    dayEl.appendChild(marker);
+                }
+
+                grid.appendChild(dayEl);
+            }
+        }
+
+        function changeMonth(offset) {
+            currentMonth += offset;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            } else if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        }
+
+        // Init
+        loadMessages();
+        loadLeavesCount();
+        renderCalendar();
+    </script>
+</body>
+</html>

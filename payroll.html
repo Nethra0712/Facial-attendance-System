@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payroll - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1><i class="ph-fill ph-money"></i> Payroll Management</h1>
+            <p>Calculate payouts based on monthly attendance</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link active"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content" style="grid-template-columns: 1fr;">
+            
+            <div class="glass table-section">
+                <h2><i class="ph ph-spreadsheet"></i> Monthly Payment Report</h2>
+                <div id="payrollTable" style="overflow-x: auto;">
+                    <div style="text-align: center; padding: 20px;"><i class="ph ph-spinner ph-spin"></i> Loading payroll data...</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 20px;">
+                <div class="glass info-card" style="flex: 1;">
+                    <h3><i class="ph ph-info"></i> Payroll Calculation</h3>
+                    <p>Total Payment = (Current Month Days Present) x (Assigned Daily Wage)</p>
+                </div>
+                <button class="btn btn-success" onclick="exportPayrollCSV()" style="height: fit-content; padding: 20px 40px; margin-top: auto;">
+                    <i class="ph ph-download-simple"></i> Download Payroll Report
+                </button>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Enterprise. Secure. Modern. Efficient.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        let payrollData = [];
+
+        async function loadPayroll() {
+            try {
+                const response = await fetch('/api/get_payroll');
+                const data = await response.json();
+
+                if (data.success) {
+                    payrollData = data.payroll;
+                    displayPayroll(data.payroll);
+                } else {
+                    showToast('Failed to load payroll', 'error');
+                }
+            } catch (error) {
+                showToast('Error connecting to API', 'error');
+            }
+        }
+
+        function displayPayroll(data) {
+            const tableDiv = document.getElementById('payrollTable');
+
+            if (data.length === 0) {
+                tableDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No employee data to show.</p>';
+                return;
+            }
+
+            let html = '<table class="records-table">';
+            html += `<tr>
+                <th>Registration ID</th>
+                <th>Employee Name</th>
+                <th>Department</th>
+                <th>Daily Wage</th>
+                <th>Days Present</th>
+                <th>Total Payment</th>
+                <th>Action</th>
+            </tr>`;
+
+            data.forEach(item => {
+                html += `<tr>
+                    <td style="font-weight: 500;">${item.user_id}</td>
+                    <td>${item.name}</td>
+                    <td>${item.department}</td>
+                    <td>LKR ${item.daily_wage}</td>
+                    <td><span class="badge badge-success">${item.days_present}</span></td>
+                    <th style="color: var(--primary);">LKR ${item.total_payment}</th>
+                    <td>
+                        <button class="btn btn-small btn-primary" onclick="sendDigitalSlip('${item.user_id}', '${item.name}', ${item.total_payment}, ${item.days_present})">
+                            <i class="ph ph-paper-plane-tilt"></i> Send Digital Slip
+                        </button>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</table>';
+            tableDiv.innerHTML = html;
+        }
+
+        async function sendDigitalSlip(userId, name, totalPayment, daysPresent) {
+            try {
+                showToast(`Sending slip to ${name}...`, 'info');
+                const response = await fetch('/api/send_payroll_slip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        name: name,
+                        total_payment: totalPayment,
+                        days_present: daysPresent
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message || 'Error from server', 'error');
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                showToast('Network error: Could not reach the server', 'error');
+            }
+        }
+
+
+        function exportPayrollCSV() {
+            if (payrollData.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            let csv = 'Registration ID,Name,Department,Daily Wage,Days Present,Total Payment\n';
+            payrollData.forEach(item => {
+                csv += `${item.user_id},${item.name},${item.department},${item.daily_wage},${item.days_present},${item.total_payment}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FaceAuth_Payroll_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            showToast('Payroll report exported', 'success');
+        }
+
+        loadPayroll();
+    </script>
+</body>
+</html>

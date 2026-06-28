@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facial Recognition Attendance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1><i class="ph-fill ph-scan"></i> FaceAuth System</h1>
+            <p>Real-time attendance tracking powered by AI</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link active"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Video Section -->
+            <div class="glass video-section">
+                <h2><i class="ph ph-video-camera"></i> Live Camera Feed</h2>
+                <div class="video-container">
+                    <img src="{{ url_for('video_feed') }}" id="videoFeed" alt="Camera Feed">
+                </div>
+                
+                <!-- Control Buttons -->
+                <div class="controls">
+                    <button id="startBtn" class="btn btn-success" onclick="startRecognition()">
+                        <i class="ph-fill ph-play-circle"></i> Start Recognition
+                    </button>
+                    <button id="stopBtn" class="btn btn-danger" onclick="stopRecognition()" disabled>
+                        <i class="ph-fill ph-stop-circle"></i> Stop
+                    </button>
+                    <button class="btn btn-primary" onclick="trainModel()">
+                        <i class="ph-bold ph-arrows-clockwise"></i> Retrain Model
+                    </button>
+                </div>
+            </div>
+
+            <!-- Info Dashboard -->
+            <div class="info-section">
+                <div class="glass info-card">
+                    <h3><i class="ph ph-info"></i> How to Use</h3>
+                    <ol>
+                        <li><strong>Register:</strong> Add a person to the database</li>
+                        <li><strong>Train:</strong> Update the AI model with new faces</li>
+                        <li><strong>Launch:</strong> Start camera to record attendance</li>
+                        <li><strong>Monitor:</strong> View logs in the Records tab</li>
+                    </ol>
+                </div>
+
+                <div class="glass info-card">
+                    <h3><i class="ph ph-check-circle"></i> System Status</h3>
+                    <div id="systemStatus">
+                        <p style="display: flex; align-items: center; gap: 8px;">
+                            <i id="statusIcon" class="ph-fill ph-circle" style="color: var(--danger);"></i>
+                            Recognition: <span id="statusText">Stopped</span>
+                        </p>
+                        <p><i class="ph ph-users"></i> Registered: <span id="userCount">...</span></p>
+                        <p><i class="ph ph-calendar"></i> Date: <span id="todayDate"></span></p>
+                    </div>
+                </div>
+
+                <div class="glass info-card">
+                    <h3><i class="ph ph-chart-bar"></i> Quick Stats</h3>
+                    <div id="quickStats">
+                        <p>Present Today: <strong id="todayCount">0</strong></p>
+                        <p>Last Sync: <span id="lastUpdate">--:--</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Messages -->
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-check-circle"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Admin Dashboard. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        document.getElementById('todayDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+
+        async function loadUserCount() {
+            try {
+                const response = await fetch('/api/get_users');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('userCount').textContent = data.users.length;
+                }
+            } catch (error) {
+                console.error('Error loading user count:', error);
+            }
+        }
+
+        async function loadTodayCount() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const response = await fetch(`/api/get_attendance?date=${today}`);
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('todayCount').textContent = data.records.length;
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+            } catch (error) {}
+        }
+
+        async function startRecognition() {
+            try {
+                const response = await fetch('/api/start_recognition', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    document.getElementById('statusText').textContent = 'Active';
+                    document.getElementById('statusIcon').style.color = 'var(--success)';
+                    showToast(data.message, 'success');
+                    
+                    // Force refresh the video feed to ensure it starts streaming
+                    const videoFeed = document.getElementById('videoFeed');
+                    if (videoFeed) {
+                        const baseUrl = videoFeed.src.split('?')[0];
+                        videoFeed.src = `${baseUrl}?t=${new Date().getTime()}`;
+                    }
+                    
+                    window.pollingInterval = setInterval(() => {
+                        loadTodayCount();
+                    }, 3000);
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error connecting to camera', 'error');
+            }
+        }
+
+        async function stopRecognition() {
+            try {
+                const response = await fetch('/api/stop_recognition', { method: 'POST' });
+                const data = await response.json();
+                
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('statusText').textContent = 'Stopped';
+                document.getElementById('statusIcon').style.color = 'var(--danger)';
+                if (window.pollingInterval) clearInterval(window.pollingInterval);
+                showToast(data.message, 'success');
+            } catch (error) {
+                showToast('Error stopping camera', 'error');
+            }
+        }
+
+        async function trainModel() {
+            showToast('Training model in background...', 'info');
+            try {
+                const response = await fetch('/api/train_model', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Training failed', 'error');
+            }
+        }
+
+        // Init
+        loadUserCount();
+        loadTodayCount();
+        startRecognition();
+
+        // Handle automatic cleanup when leaving page
+        window.addEventListener('pagehide', function() {
+            // navigator.sendBeacon is preferred for page unloading
+            // It sends an asynchronous POST request that doesn't delay navigation
+            navigator.sendBeacon('/api/stop_recognition');
+        });
+    </script>
+</body>
+</html>

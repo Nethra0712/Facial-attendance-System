@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - FaceAuth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1><i class="ph-fill ph-scan"></i> FaceAuth System</h1>
+            <p>Enroll a new employee or student</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="glass nav-bar">
+            <a href="/admin" class="nav-link"><i class="ph ph-house"></i> Home</a>
+            <a href="/admin/register" class="nav-link active"><i class="ph ph-user-plus"></i> Register</a>
+            <a href="/admin/records" class="nav-link"><i class="ph ph-table"></i> Records</a>
+            <a href="/admin/leaves" class="nav-link"><i class="ph ph-calendar-plus"></i> Leaves</a>
+            <a href="/admin/holidays" class="nav-link"><i class="ph ph-sun"></i> Holidays</a>
+            <a href="/admin/manual_attendance" class="nav-link"><i class="ph ph-note-pencil"></i> Manual</a>
+            <a href="/admin/reports" class="nav-link"><i class="ph ph-chart-line"></i> Reports</a>
+            <a href="/admin/payroll" class="nav-link"><i class="ph ph-money"></i> Payroll</a>
+            <a href="/logout" class="nav-link"><i class="ph ph-sign-out"></i> Logout</a>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Registration Form -->
+            <div class="glass form-section">
+                <h2><i class="ph ph-identification-card"></i> Profile Details</h2>
+                
+                <form id="registerForm" onsubmit="registerUser(event)">
+                    <div class="form-group">
+                        <label for="userId">Registration ID *</label>
+                        <input type="text" id="userId" name="userId" required 
+                               placeholder="e.g. EMP-001" pattern="[A-Za-z0-9-]+" 
+                               title="Alphanumeric and hyphens only">
+                        <small>Unique identifier for the user.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="name">Full Name *</label>
+                        <input type="text" id="name" name="name" required 
+                               placeholder="John Doe">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email" 
+                               placeholder="john@company.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="department">Department *</label>
+                        <select id="department" name="department" required>
+                            <option value="" disabled selected>Select Department</option>
+                            <option value="Human Resources">Human Resources</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Administration">Administration</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Operations">Operations</option>
+                            <option value="IT Support">IT Support</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="daily_wage">Daily Wage (LKR) *</label>
+                        <input type="number" id="daily_wage" name="daily_wage" required step="0.01" value="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Login Password *</label>
+                        <input type="password" id="password" name="password" required placeholder="Choose a temporary password">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="ph ph-camera"></i> Save & Capture Face
+                    </button>
+                </form>
+            </div>
+
+            <!-- List & Instructions Section -->
+            <div class="info-section">
+                <div class="glass info-card">
+                    <h3><i class="ph ph-warning-circle"></i> Camera Enrollment</h3>
+                    <ul>
+                        <li>Submitting the form will activate your webcam.</li>
+                        <li>Keep your face centered and well-lit.</li>
+                        <li>Look straight, then slightly left and right.</li>
+                        <li>The system captures ~30 frames automatically.</li>
+                    </ul>
+                </div>
+
+                <div class="glass info-card">
+                    <h3 style="margin-bottom: 20px;"><i class="ph ph-users-three"></i> Enrolled Users</h3>
+                    <div id="userList">
+                        <div style="text-align: center; padding: 20px;"><i class="ph ph-spinner ph-spin"></i> Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <i id="messageIcon" class="ph-fill ph-info"></i>
+            <span id="messageText"></span>
+        </div>
+
+        <footer>
+            <p>© 2026 FaceAuth Admin Dashboard. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/get_users');
+                const data = await response.json();
+                
+                if (data.success && data.users.length > 0) {
+                    let html = '<div style="overflow-x: auto;"><table class="user-table">';
+                    html += '<tr><th>ID</th><th>Name</th><th>Dept</th><th>Action</th></tr>';
+                    
+                    data.users.forEach(user => {
+                        html += `<tr>
+                            <td style="font-weight: 500;">${user.user_id}</td>
+                            <td>${user.name}</td>
+                            <td style="color: var(--text-muted);">${user.department || '-'}</td>
+                            <td>
+                                <button class="btn btn-small btn-danger" 
+                                        onclick="deleteUser('${user.user_id}', '${user.name}')"
+                                        title="Delete User">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += '</table></div>';
+                    document.getElementById('userList').innerHTML = html;
+                } else {
+                    document.getElementById('userList').innerHTML = 
+                        '<p style="color: var(--text-muted); text-align: center; padding: 20px;">No users enrolled.</p>';
+                }
+            } catch (error) {
+                document.getElementById('userList').innerHTML = 
+                    '<p style="color: var(--danger); text-align: center;">Error loading data.</p>';
+            }
+        }
+
+        async function registerUser(event) {
+            event.preventDefault();
+            
+            const userId = document.getElementById('userId').value.toUpperCase();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const department = document.getElementById('department').value;
+            const daily_wage = document.getElementById('daily_wage').value;
+            const password = document.getElementById('password').value;
+            const btn = event.target.querySelector('button[type="submit"]');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Processing...';
+            
+            try {
+                const response = await fetch('/api/register_stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: userId, 
+                        name: name, 
+                        email: email, 
+                        department: department,
+                        daily_wage: daily_wage,
+                        password: password
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+                            showToast(data.message, data.status);
+                            
+                            if (data.status === 'success') {
+                                document.getElementById('registerForm').reset();
+                                loadUsers();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stream chunk', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                showToast('Registration failed.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph ph-camera"></i> Save & Capture Face';
+            }
+        }
+
+        async function deleteUser(userId, name) {
+            if (!confirm(`Are you sure you want to permanently delete ${name}?`)) return;
+
+            try {
+                const response = await fetch('/api/delete_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadUsers();
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch (error) {
+                showToast('Could not delete user.', 'error');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>
